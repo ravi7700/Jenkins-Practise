@@ -24,7 +24,7 @@ pipeline {
     
     post {
         always {
-            echo 'Build process completed.' [cite: 1830, 1867]
+            echo 'Build process completed.'
         }
     }
 }
