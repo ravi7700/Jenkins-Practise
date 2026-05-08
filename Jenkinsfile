@@ -1,28 +1,42 @@
 pipeline {
-    agent { label 'linux-worker' } // Ensures execution on your optimized slave [cite: 1240, 1278]
-    
+    agent { label 'linux-worker' }
     triggers {
-        githubPush() // Automatically starts the build when GitHub sends a webhook "ping" 
+        githubPush() 
     }
 
     stages {
         stage('Checkout') {
             steps {
-                // Pulls code from the repository where this Jenkinsfile is stored [cite: 1277]
                 checkout scm 
             }
         }
-        stage('Identify Environment') {
+        stage('Test Email Logic') {
             steps {
-                echo 'Build triggered automatically via Webhook!'
-                sh 'hostname'     // Confirms it is running on the slave node [cite: 1313]
-                sh 'free -h'      // Verifies your 2GB Swap space is active [cite: 1604, 1779]
+                echo 'Validating environment and sending notification...'
+                sh 'hostname'     
+                sh 'free -h'     
             }
         }
-        stage('Verify Files') {
-            steps {
-                sh 'ls -lthr'     // Lists the files pulled from your GitHub repo [cite: 1643, 1644]
-            }
+    }
+
+    post {
+        success {
+            
+            emailext (
+                to: 'ravimali7700@gmail.com',
+                subject: "SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+                body: "The build was successful! Review the results here: ${env.BUILD_URL}",
+                attachLog: true 
+            )
+        }
+        failure {
+            
+            emailext (
+                to: 'ravimali7700@gmail.com',
+                subject: "FAILURE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+                body: "The build failed. Check the console output: ${env.BUILD_URL}",
+                attachLog: true
+            )
         }
     }
 }
