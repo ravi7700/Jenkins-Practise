@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         // Replace with your actual Docker Hub username
-        DOCKER_HUB_USER = 'YOUR_DOCKERHUB_USERNAME' 
+        DOCKER_HUB_USER = 'ravikumarr10839' 
         IMAGE_NAME = 'my-first-container'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
     }
