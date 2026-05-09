@@ -1,5 +1,11 @@
 pipeline {
-    agent { label 'linux-worker' } 
+    agent { label 'linux-worker' }
+
+    // This block creates the interactive UI in Jenkins
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['Dev', 'Staging', 'Production'], description: 'Select the target environment')
+        booleanParam(name: 'RUN_SECURITY_SCAN', defaultValue: true, description: 'Check this to run a security check')
+    }
 
     triggers {
         githubPush()
@@ -8,24 +14,25 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm 
-            }
-        }
-        
-        stage('Build Artifact') {
-            steps {
-                echo 'Simulating Java Compilation...'
-                // FIXED: Using double quotes allows Jenkins to replace ${env.BUILD_ID}
-                sh "echo 'Version: ${env.BUILD_ID}' > my-app-v${env.BUILD_ID}.jar"
-                sh "ls -l *.jar"
+                checkout scm
             }
         }
 
-        stage('Archive & Test Notification') {
+        stage('Input Validation') {
             steps {
-                echo 'Build successful, archiving artifact...'
-                // This will store the JAR file on the Master node
-                archiveArtifacts artifacts: '*.jar', followSymlinks: false
+                // We access parameters using the 'params' object
+                echo "Target Environment: ${params.ENVIRONMENT}"
+                echo "Security Scan Enabled: ${params.RUN_SECURITY_SCAN}"
+            }
+        }
+
+        stage('Conditional Security Scan') {
+            when {
+                expression { params.RUN_SECURITY_SCAN == true }
+            }
+            steps {
+                echo "Performing security scan on ${params.ENVIRONMENT} environment..."
+                sh 'sleep 2' // Simulating a scan
             }
         }
     }
@@ -34,16 +41,8 @@ pipeline {
         success {
             emailext (
                 to: 'ravimali7700@gmail.com',
-                subject: "SUCCESS: Artifact Created - Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: "Build successful. You can download the artifact here: ${env.BUILD_URL}artifact/",
-                attachLog: true
-            )
-        }
-        failure {
-            emailext (
-                to: 'ravimali7700@gmail.com',
-                subject: "FAILURE: Build Failed - Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: "The build failed. Please check the logs here: ${env.BUILD_URL}",
+                subject: "SUCCESS: Build #${env.BUILD_NUMBER} for ${params.ENVIRONMENT}",
+                body: "Environment: ${params.ENVIRONMENT}\nScan Performed: ${params.RUN_SECURITY_SCAN}\nLogs: ${env.BUILD_URL}",
                 attachLog: true
             )
         }
