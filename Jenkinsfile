@@ -1,10 +1,16 @@
 pipeline {
     agent { label 'linux-worker' }
 
-    // This block creates the interactive UI in Jenkins
+    // Define variables to be used throughout the pipeline
+    environment {
+        // REPLACE THIS with your actual Docker Hub username!
+        DOCKER_HUB_USER = 'YOUR_DOCKERHUB_USERNAME' 
+        IMAGE_NAME = 'my-first-container'
+        IMAGE_TAG = "${env.BUILD_NUMBER}" // Tags the image with the Jenkins build number
+    }
+
     parameters {
         choice(name: 'ENVIRONMENT', choices: ['Dev', 'Staging', 'Production'], description: 'Select the target environment')
-        booleanParam(name: 'RUN_SECURITY_SCAN', defaultValue: true, description: 'Check this to run a security check')
     }
 
     triggers {
@@ -18,21 +24,25 @@ pipeline {
             }
         }
 
-        stage('Input Validation') {
+        stage('Build Docker Image') {
             steps {
-                // We access parameters using the 'params' object
-                echo "Target Environment: ${params.ENVIRONMENT}"
-                echo "Security Scan Enabled: ${params.RUN_SECURITY_SCAN}"
+                echo "Building image: ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}..."
+                // Uses the Dockerfile in your repo to build the image
+                sh "docker build -t ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG} ."
             }
         }
 
-        stage('Conditional Security Scan') {
-            when {
-                expression { params.RUN_SECURITY_SCAN == true }
-            }
+        stage('Push to Docker Hub') {
             steps {
-                echo "Performing security scan on ${params.ENVIRONMENT} environment..."
-                sh 'sleep 2' // Simulating a scan
+                echo "Authenticating and pushing image to Docker Hub..."
+                // This block securely injects your credentials without exposing them in the logs
+                withCredentials([usernamePassword(credentialsId: 'docker-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+                    // Log in to Docker Hub
+                    sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
+                    
+                    // Push the image
+                    sh "docker push ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+                }
             }
         }
     }
@@ -41,10 +51,24 @@ pipeline {
         success {
             emailext (
                 to: 'ravimali7700@gmail.com',
-                subject: "SUCCESS: Build #${env.BUILD_NUMBER} for ${params.ENVIRONMENT}",
-                body: "Environment: ${params.ENVIRONMENT}\nScan Performed: ${params.RUN_SECURITY_SCAN}\nLogs: ${env.BUILD_URL}",
+                subject: "SUCCESS: Image Pushed - Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+                body: "Build successful. The new Docker image is available on Docker Hub as ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}\n\nLogs: ${env.BUILD_URL}",
                 attachLog: true
             )
+        }
+        failure {
+            emailext (
+                to: 'ravimali7700@gmail.com',
+                subject: "FAILURE: Docker Build Failed - Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+                body: "The Docker build or push failed. Check logs here: ${env.BUILD_URL}",
+                attachLog: true
+            )
+        }
+        always {
+            // CRITICAL: Clean up the local slave disk so your 2GB server doesn't run out of space!
+            echo "Cleaning up local Docker images..."
+            sh "docker rmi ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG} || true"
+            sh "docker image prune -f"
         }
     }
 }
