@@ -1,40 +1,36 @@
 pipeline {
     agent { label 'linux-worker' }
+    
     triggers {
-        githubPush() 
+        githubPush()
     }
 
     stages {
         stage('Checkout') {
             steps {
-                checkout scm 
+                checkout scm
             }
         }
-        stage('Test Email Logic') {
+        
+        stage('Build Artifact') {
             steps {
-                echo 'Validating environment and sending notification...'
-                sh 'hostname'     
-                sh 'free -h'     
+                echo 'Simulating Java Compilation...'
+                // This creates a dummy file to represent our application output
+                sh 'echo "Version: ${env.BUILD_ID}" > my-app-v${env.BUILD_ID}.jar'
+                sh 'ls -l *.jar'
             }
         }
     }
 
     post {
         success {
+            // This command tells Jenkins to "grab" the file and store it on the Master
+            archiveArtifacts artifacts: '*.jar', followSymlinks: false
             
             emailext (
                 to: 'ravimali7700@gmail.com',
-                subject: "SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: "The build was successful! Review the results here: ${env.BUILD_URL}",
-                attachLog: true 
-            )
-        }
-        failure {
-            
-            emailext (
-                to: 'ravimali7700@gmail.com',
-                subject: "FAILURE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: "The build failed. Check the console output: ${env.BUILD_URL}",
+                subject: "SUCCESS: Artifact Stored - Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+                body: "Build successful. Download artifact here: ${env.BUILD_URL}artifact/",
                 attachLog: true
             )
         }
